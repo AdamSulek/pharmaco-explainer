@@ -1,8 +1,21 @@
 import argparse
+import os
 import pandas as pd
 from rdkit import Chem
 from rdkit.Chem.Scaffolds import MurckoScaffold
 import random
+
+
+def project_path(*parts):
+    root = os.environ.get("PHARM_PROJECT_ROOT")
+    if root is None:
+        raise RuntimeError(
+            "Environment variable PHARM_PROJECT_ROOT is not set.\n"
+            "Run:\n"
+            "   export PHARM_PROJECT_ROOT=/path/to/project"
+        )
+    return os.path.join(root, *parts)
+
 
 def smiles_to_scaffold(smiles: str) -> str:
     mol = Chem.MolFromSmiles(smiles)
@@ -14,9 +27,11 @@ def smiles_to_scaffold(smiles: str) -> str:
     except Exception:
         return ""
 
+
 def scaffold_split(df, train_frac=0.8, val_frac=0.1, test_frac=0.1, seed=42):
     random.seed(seed)
     scaffold_dict = {}
+
     for idx, row in df.iterrows():
         s = row["scaffold"]
         scaffold_dict.setdefault(s, []).append(idx)
@@ -46,6 +61,7 @@ def scaffold_split(df, train_frac=0.8, val_frac=0.1, test_frac=0.1, seed=42):
     df["split"] = "train"
     df.loc[val_idx, "split"] = "val"
     df.loc[test_idx, "split"] = "test"
+
     return df
 
 
@@ -55,11 +71,15 @@ def main():
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
-    df = pd.read_parquet(f"../../data/{args.dataset}/{args.dataset}.parquet")
+    in_path = project_path("data", args.dataset, f"{args.dataset}.parquet")
+    out_path = project_path("data", args.dataset, f"{args.dataset}_split.parquet")
+
+    df = pd.read_parquet(in_path)
     df["scaffold"] = df["smiles"].apply(smiles_to_scaffold)
+
     df = scaffold_split(df, 0.8, 0.1, 0.1, seed=args.seed)
 
-    df.to_parquet(f"../../data/{args.dataset}/{args.dataset}_split.parquet", index=False)
+    df.to_parquet(out_path, index=False)
 
     print(df["split"].value_counts())
 

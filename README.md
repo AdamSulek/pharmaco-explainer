@@ -1,5 +1,13 @@
 # pharmaco-explainer
 
+## Prerequisites
+
+To correctly run scripts across this repository we
+recommend to set environment variable to main folder of this project
+in your disc:
+
+export PHARM_PROJECT_ROOT=/path/to/project
+
 ## Data Preparation
 
 ### 1. Generating conformers for pharmacophore alignment

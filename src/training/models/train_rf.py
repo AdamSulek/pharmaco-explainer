@@ -12,9 +12,11 @@ from glob import glob
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
+
 def seed_everything(seed):
     np.random.seed(seed)
     random.seed(seed)
+
 
 PARAM_GRID = {
     'n_estimators': [100, 300],
@@ -24,6 +26,7 @@ PARAM_GRID = {
 
 PARAM_COMBINATIONS = list(product(*PARAM_GRID.values()))
 PARAM_KEYS = list(PARAM_GRID.keys())
+
 
 def train_and_evaluate(df, split_name, checkpoint_dir):
     best_model, best_roc_auc, best_params = None, 0, None
@@ -57,21 +60,28 @@ def train_and_evaluate(df, split_name, checkpoint_dir):
     y_pred = best_model.predict(X_test)
     y_proba = best_model.predict_proba(X_test)[:, 1]
 
-    logging.info(f"TEST ROC-AUC: {roc_auc_score(y_test, y_proba):.4f}")
-    logging.info(f"TEST PR-AUC:  {average_precision_score(y_test, y_proba):.4f}")
-    logging.info(f"Accuracy:     {accuracy_score(y_test, y_pred):.4f}")
-    logging.info(f"F1 Score:     {f1_score(y_test, y_pred):.4f}")
-    logging.info(f"Confusion:\n{confusion_matrix(y_test, y_pred)}")
+    logging.info("==== FINAL TEST METRICS ====")
+    logging.info(f"ROC-AUC: {roc_auc_score(y_test, y_proba):.4f}")
+    logging.info(f"PR-AUC:  {average_precision_score(y_test, y_proba):.4f}")
+    logging.info(f"Accuracy: {accuracy_score(y_test, y_pred):.4f}")
+    logging.info(f"F1 Score: {f1_score(y_test, y_pred):.4f}")
+    logging.info(f"Confusion matrix:\n{confusion_matrix(y_test, y_pred)}")
     logging.info(f"Best Params: {best_params}")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", required=True, choices=["k3","k4","k5"])
-    parser.add_argument("--split", required=True, choices=["easy","hard","all"])
+    parser.add_argument("--dataset", default="k3", choices=["k3", "k4", "k5"])
+    parser.add_argument("--split", default="all", choices=["easy", "hard", "all"])
     args = parser.parse_args()
 
-    input_dir = f"../../../data/{args.dataset}/processed"
-    checkpoint_dir = f"../../../results/checkpoints/{args.dataset}/"
+    PROJECT_ROOT = os.environ.get("PHARM_PROJECT_ROOT")
+    if PROJECT_ROOT is None:
+        raise EnvironmentError("Please set the PHARM_PROJECT_ROOT environment variable!")
+
+    input_dir = os.path.join(PROJECT_ROOT, "data", args.dataset, "processed")
+    checkpoint_dir = os.path.join(PROJECT_ROOT, "results", "checkpoints", args.dataset)
+
     seed_everything(123)
 
     files = sorted(glob(os.path.join(input_dir, "final_dataset_part_*.parquet")))

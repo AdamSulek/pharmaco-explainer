@@ -26,6 +26,15 @@ PARAM_GRID = {
 PARAM_COMBINATIONS = list(itertools.product(*PARAM_GRID.values()))
 PARAM_KEYS = list(PARAM_GRID.keys())
 
+def get_project_root():
+    root = os.getenv("PHARM_PROJECT_ROOT")
+    if not root:
+        raise EnvironmentError(
+            "Environment variable PHARM_PROJECT_ROOT is not set.\n"
+            "Run: export PHARM_PROJECT_ROOT=/path/to/project"
+        )
+    return root
+
 class MLP(torch.nn.Module):
     def __init__(self, in_features=2048, hidden_dim=128, num_hidden_layers=2, dropout_rate=0.2):
         super().__init__()
@@ -75,8 +84,9 @@ def load_data_from_df(df):
     return {k: MyDataset(v["X"], v["y"]) for k, v in datasets.items()}
 
 def train_and_evaluate(dataset, split_choice, seed=123):
-    input_dir = f"../../../data/{dataset}/processed"
-    checkpoint_dir = f"../../../results/checkpoints/{dataset}"
+    root = get_project_root()
+    input_dir = os.path.join(root, "data", dataset, "processed")
+    checkpoint_dir = os.path.join(root, "results", "checkpoints", dataset)
     os.makedirs(checkpoint_dir, exist_ok=True)
 
     files = sorted(glob(os.path.join(input_dir, "final_dataset_part_*.parquet")))
@@ -90,8 +100,12 @@ def train_and_evaluate(dataset, split_choice, seed=123):
         df["split"] = df["split_easy"]
     elif split_choice == "hard":
         df["split"] = df["split_hard"]
+    elif split_choice == "all":
+        df["split"] = df["split_easy"]
+    else:
+        raise ValueError(f"Unknown split choice: {split_choice}")
 
-    unique_splits = set(df["split"].unique())
+    unique_splits = set(df["split"].dropna().unique())
     if "train" not in unique_splits or "test" not in unique_splits:
         raise ValueError(f"Missing train/test in splits: {unique_splits}")
 
@@ -174,7 +188,7 @@ def train_and_evaluate(dataset, split_choice, seed=123):
             best_overall["params"] = params
             best_overall["model_state"] = best_state
 
-            save_path = f"{checkpoint_dir}/best_model_{split_choice}.pth"
+            save_path = os.path.join(checkpoint_dir, f"best_model_mlp_{split_choice}.pth")
             torch.save({
                 "model_state_dict": best_state,
                 "params": params,
@@ -217,7 +231,7 @@ def train_and_evaluate(dataset, split_choice, seed=123):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", required=True, choices=["k3","k4","k5"])
+    parser.add_argument("--dataset", default="k3", choices=["k3","k4","k5"])
     parser.add_argument("--split", choices=["easy", "hard", "all"], default="easy")
     parser.add_argument("--seed", type=int, default=123)
     args = parser.parse_args()

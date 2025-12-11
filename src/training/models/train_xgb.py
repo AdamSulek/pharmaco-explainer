@@ -40,7 +40,6 @@ def log_split_stats(train_df, val_df, test_df):
                 len(df),
                 (df['y'] == 1).sum(),
                 (df['y'] == 0).sum())
-
     for name, total, pos, neg in [
         stats(train_df, "TRAIN"),
         stats(val_df,   "VAL"),
@@ -98,15 +97,19 @@ def train_and_evaluate(df, checkpoint_dir, split_name, tree_method="hist"):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", required=True, choices=["k3","k4","k5"])
-    parser.add_argument("--split", required=True, choices=["easy","hard","all"])
-    parser.add_argument("--gpu", type=int, default=1)
+    parser.add_argument("--dataset", default="k3", choices=["k3","k4","k5"])
+    parser.add_argument("--split", default="hard", choices=["easy","hard","all"])
+    parser.add_argument("--gpu", type=int, default=0)
     args = parser.parse_args()
+
+    PROJECT_ROOT = os.environ.get("PHARM_PROJECT_ROOT")
+    if PROJECT_ROOT is None:
+        raise EnvironmentError("Please set the PHARM_PROJECT_ROOT environment variable!")
 
     seed_everything(123)
 
-    input_dir = f"../../../data/{args.dataset}/processed"
-    checkpoint_dir = f"../../../results/checkpoints/{args.dataset}"
+    input_dir = os.path.join(PROJECT_ROOT, "data", args.dataset, "processed")
+    checkpoint_dir = os.path.join(PROJECT_ROOT, "results", "checkpoints", args.dataset)
 
     files = sorted(glob(os.path.join(input_dir, "final_dataset_part_*.parquet")))
     if not files:
