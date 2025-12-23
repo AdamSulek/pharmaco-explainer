@@ -1,5 +1,7 @@
 # pharmaco-explainer
 
+## Data Preparation
+
 ### 1. Generating conformers for pharmacophore alignment
 
 For each molecule, a fixed number of conformers is generated to enable robust pharmacophore alignment.
@@ -55,6 +57,7 @@ python data_preparation/pharmacophore_alignment_pipeline.py \
   sbatch --array=0-52 \
     --export=ALL,K=k4,BASE_DIR=/path/to/project_root \
     scripts/qc_retrieve_positive_conformers.sh
+  ```
 
 ### 4. Graph generation
 
@@ -67,6 +70,7 @@ python data_preparation/pharmacophore_alignment_pipeline.py \
   ```bash
   sbatch --export=ALL,K=4,BASE_DIR=/path/to/project_root \
     scripts/graph_generation.sh
+  ```
 
 ### 5. MAT / RMAT featurization
 
@@ -89,3 +93,63 @@ python data_preparation/pharmacophore_alignment_pipeline.py \
   sbatch --array=0-9 \
     --export=ALL,BASE_DIR=/path/to/project_root,K=4,MODEL_TYPE=mat,MODE=no_pos \
     hpc/featurize_mat_rmat.template.sh
+  ```
+
+## Run Training
+
+### 1. GCN training
+
+- Trains a **graph convolutional network (GCN)** on precomputed molecular graph representations.
+
+- Uses graph features generated during data preparation and dataset-specific train/validation/test splits (`split_easy`, `split_hard`, or `all`).
+
+- Training is executed per pharmacophore dataset (`k3`, `k4`, `k5`), with checkpoints and results stored separately for each split configuration.
+
+- Run on HPC using the provided template:
+
+  ```bash
+  sbatch \
+    --export=ALL,K=4,BASE_DIR=/path/to/project_root,SPLIT_TYPE=split_easy \
+    scripts/train_gcn.sh
+  ```
+
+### 2. MAT / RMAT training
+
+- Trains a **Molecule Attention Transformer (MAT)** or **Relational MAT (RMAT)** on precomputed molecular features stored as `(feature, ID)` tuples.
+
+- Feature computation is performed once at scale; labels (`y`) and dataset splits are applied later based on molecule IDs, enabling efficient reuse across `k3`, `k4`, and `k5` datasets.
+
+- Supports standard training as well as runs augmented with precomputed **with_pos** features, where matched conformers are injected for positive samples.
+
+- Run on HPC using the provided template:
+
+  ```bash
+  sbatch \
+    --export=ALL,BASE_DIR=/path/to/project_root,MODEL=mat,K=k4,DIFFICULTY=normal \
+    scripts/train_mat_or_rmat.sh
+  ```
+
+## Explainability
+
+### 2. MAT / RMAT
+
+Run per-atom attributions (Vanilla Gradients or Grad-CAM) for MAT/RMAT models on SLURM.
+
+### Script
+
+`compute_mat_rmat_attributions.sh`
+
+### Usage (SLURM)
+
+Set parameters via `sbatch --export`:
+
+```bash
+sbatch --export=ALL,\
+METHOD=gradcam,\
+MODEL=mat,\
+CHECKPOINT=checkpoints_mat/mat_k4_normal_with_pos/best_model.pth,\
+TEST_PICKLE=pharmaco_explainer/pickle_dataloaders/mat/k4/normal/test/test.p,\
+POSITIVE_PICKLE_POS_PATH=pharmaco_explainer/pickle_dataloaders/mat/k4_positive/k4_positive.p,\
+OUTPUT_FILE=results_k4/GradCam_mat_all_with_pos.parquet \
+compute_mat_rmat_attributions.sh
+```
