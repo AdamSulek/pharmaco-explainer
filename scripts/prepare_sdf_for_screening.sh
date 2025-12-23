@@ -21,7 +21,7 @@ export NUMEXPR_NUM_THREADS=1
 
 # (Optional) conda activation – keep generic
 # source /path/to/miniconda/etc/profile.d/conda.sh
-# conda activate savi
+# conda activate your_env
 
 PART=$(printf "%03d" "${SLURM_ARRAY_TASK_ID}")
 

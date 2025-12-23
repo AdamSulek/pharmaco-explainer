@@ -54,4 +54,38 @@ python data_preparation/pharmacophore_alignment_pipeline.py \
   ```bash
   sbatch --array=0-52 \
     --export=ALL,K=k4,BASE_DIR=/path/to/project_root \
-    hpc/qc_retrieve_positive_conformers.template.sh
+    scripts/qc_retrieve_positive_conformers.sh
+
+### 4. Graph generation
+
+- Generates **graph-based representations** of molecules from prepared tabular data for a selected pharmacophore setting (`k3`, `k4`, or `k5`).
+
+- Reads an input parquet file (`ks{K}.parquet`) and converts each molecule into a graph format suitable for downstream graph-based or deep learning models.
+
+- Run on HPC using the provided template:
+
+  ```bash
+  sbatch --export=ALL,K=4,BASE_DIR=/path/to/project_root \
+    scripts/graph_generation.sh
+
+### 5. MAT / RMAT featurization
+
+- Generates **MAT or RMAT molecular features** using attention-based transformer models from HuggingMolecules.
+
+- Two featurization modes are supported:
+  - `no_pos` – features are generated from a **3D conformer internally constructed from SMILES** (native HuggingMolecules behavior).  
+    This mode produces **one feature representation per molecule ID**, independent of pharmacophore alignment.
+  - `with_pos` – features are generated from the **exact 3D conformer selected during pharmacophore alignment**.  
+    Each generated feature corresponds to a **pharmacophore-matched conformer** and therefore represents a **structural positive by construction** (`y = 1`).
+
+- Featurization is performed **independently of dataset splitting and labeling**.  
+  Feature objects are stored together with molecule IDs as `(feature, ID)` tuples and can be **reused across multiple datasets** (`k3`, `k4`, `k5`).
+
+- For large-scale libraries (e.g. millions of molecules), MAT/RMAT featurization is computationally expensive and should be **performed once**, followed by **dataset-specific assignment of labels and splits**.
+
+- Run on HPC using the provided template:
+
+  ```bash
+  sbatch --array=0-9 \
+    --export=ALL,BASE_DIR=/path/to/project_root,K=4,MODEL_TYPE=mat,MODE=no_pos \
+    hpc/featurize_mat_rmat.template.sh
