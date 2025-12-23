@@ -72,7 +72,7 @@ def train_and_evaluate(df, split_name, checkpoint_dir):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", default="k3", choices=["k3", "k4", "k5"])
-    parser.add_argument("--split", default="all", choices=["easy", "hard", "all"])
+    parser.add_argument("--split", default="easy", choices=["easy", "hard", "all"])
     args = parser.parse_args()
 
     PROJECT_ROOT = os.environ.get("PHARM_PROJECT_ROOT")

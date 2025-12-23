@@ -256,8 +256,8 @@ def run(dataset, model_name, split):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", type=str, default="k3")
-    parser.add_argument("--model", type=str, default="RF")
-    parser.add_argument("--split", type=str, default="all")
+    parser.add_argument("--model", type=str, default="rf")
+    parser.add_argument("--split", type=str, default="easy")
     args = parser.parse_args()
     run(args.dataset, args.model, args.split)
 
