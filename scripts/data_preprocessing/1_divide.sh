@@ -14,7 +14,7 @@ DATASET=${DATASET:-k3}
 NUM_CHUNKS=${NUM_CHUNKS:-50}
 
 set +u
-source $HOME/miniconda/etc/profile.d/conda.sh
+source $HOME/miniconda/etc/profile.d/conda.sh # Path to your conda
 conda activate savi
 set -u
 export LD_PRELOAD="$CONDA_PREFIX/lib/libstdc++.so.6"
