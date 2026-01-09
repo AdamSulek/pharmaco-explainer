@@ -34,7 +34,7 @@ PYTHON="${PYTHON:-python}"
 #   K=3|4|5
 #
 # Example:
-# sbatch --export=ALL,K=4,BASE_DIR=/path/to/project_root,SPLIT_TYPE=split_easy hpc/train_gcn.template.sh
+# sbatch --export=ALL,K=4,BASE_DIR=/path/to/project_root,SPLIT_TYPE=split_distant_set hpc/train_gcn.template.sh
 
 : "${K:?You must export K (e.g. 3,4,5)}"
 

@@ -119,7 +119,7 @@ def main():
     parser.add_argument("--label_param", type=str, choices=["y", "activity", "label"], default="y")
     parser.add_argument("--k", type=int, required=True)
     parser.add_argument("--split_file_path", type=str, required=True)
-    parser.add_argument("--split_type", type=str, choices=["split", "split_easy", "split_hard"], default="split")
+    parser.add_argument("--split_type", type=str, choices=["split", "split_distant_set", "split_close_set"], default="split")
     parser.add_argument("--input_dir", type=str, required=True)
     parser.add_argument("--checkpoint_dir", type=str, required=True)
     parser.add_argument("--result_dir", type=str, required=True)

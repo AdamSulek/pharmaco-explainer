@@ -118,9 +118,9 @@ if __name__ == "__main__":
     df = pd.concat([pd.read_parquet(f) for f in files], ignore_index=True)
 
     if args.split == "easy":
-        df["split"] = df["split_easy"]
+        df["split"] = df["split_distant_set"]
     elif args.split == "hard":
-        df["split"] = df["split_hard"]
+        df["split"] = df["split_close_set"]
 
     logging.info(f"Training XGBoost on {args.split} split, total rows: {len(df)}")
     train_and_evaluate(df, checkpoint_dir, split_name=args.split, tree_method="hist")

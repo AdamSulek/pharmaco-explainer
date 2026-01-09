@@ -97,11 +97,11 @@ def train_and_evaluate(dataset, split_choice, seed=123):
     logging.info(f"Loaded {len(df)} rows from {len(files)} files")
 
     if split_choice == "easy":
-        df["split"] = df["split_easy"]
+        df["split"] = df["split_distant_set"]
     elif split_choice == "hard":
-        df["split"] = df["split_hard"]
+        df["split"] = df["split_close_set"]
     elif split_choice == "all":
-        df["split"] = df["split_easy"]
+        df["split"] = df["split_distant_set"]
     else:
         raise ValueError(f"Unknown split choice: {split_choice}")
 

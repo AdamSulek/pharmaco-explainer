@@ -165,14 +165,14 @@ def main():
     ap.add_argument("--subset", default="normal")
 
     ap.add_argument("--difficulty", choices=["normal", "easy", "hard", "none"], default="normal",
-                    help="Dataset difficulty selection. 'easy'/'hard' filters samples using split_easy/split_hard.")
+                    help="Dataset difficulty selection. 'easy'/'hard' filters samples using split_distant_set/split_close_set.")
 
     ap.add_argument("--data-root", dest="data_root",
                     default="/net/storage/pr3/plgrid/plggsanodrugs/pharmaco_explainer",
                     help="Project root containing 'pickle_dataloaders' and 'data'.")
 
     ap.add_argument("--data-split-file", dest="data_split_file", default=None,
-                    help="Parquet/CSV with columns: ID and split_easy/split_hard (and optionally val/test).")
+                    help="Parquet/CSV with columns: ID and split_distant_set/split_close_set (and optionally val/test).")
 
     ap.add_argument("--positive-pickle-pos-path", dest="positive_pickle_pos_path", default=None,
                     help="Optional pickle: list of (feat_pos, ID) for positives. Replaces all y==1 features by ID.")

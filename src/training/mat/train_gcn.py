@@ -169,7 +169,7 @@ if __name__ == "__main__":
     parser.add_argument("--checkpoint_dir", type=str, required=True)
     parser.add_argument("--result_dir", type=str, required=True)
     parser.add_argument("--split_file_path", type=str, required=True)
-    parser.add_argument("--split_type", type=str, choices=["split", "split_easy", "split_hard"], 
+    parser.add_argument("--split_type", type=str, choices=["split", "split_distant_set", "split_close_set"],
                         default='split')
     args = parser.parse_args()
     

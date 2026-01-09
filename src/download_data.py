@@ -28,7 +28,7 @@ def download_file(url, dest_path: Path):
 
 def download_dataset(dataset_name):
     base_url = f"https://huggingface.co/datasets/klimczakjakubdev/pharmaco-explainer/resolve/main/{dataset_name}/"
-    files = [f"{dataset_name}.parquet", f"{dataset_name}_labels.parquet"]
+    files = [f"{dataset_name}.parquet", f"{dataset_name}_split.parquet", f"{dataset_name}_labels.parquet"]
 
     dest_dir = Path(project_path("data", dataset_name))
     for file_name in files:
@@ -42,7 +42,7 @@ if __name__ == "__main__":
         "--dataset",
         type=str,
         default="k3",
-        choices=["k3", "k4", "k5"],
+        choices=["k3", "k4", "k4_2ar", "k5"],
         help="Which dataset to download"
     )
     args = parser.parse_args()

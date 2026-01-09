@@ -187,7 +187,7 @@ sbatch scripts/data_preprocessing/4_merge_data.sh
 
 - Trains a **graph convolutional network (GCN)** on precomputed molecular graph representations.
 
-- Uses graph features generated during data preparation and dataset-specific train/validation/test splits (`split_easy`, `split_hard`, or `all`).
+- Uses graph features generated during data preparation and dataset-specific train/validation/test splits (`split_distant_set`, `split_close_set`, or `all`).
 
 - Training is executed per pharmacophore dataset (`k3`, `k4`, `k5`), with checkpoints and results stored separately for each split configuration.
 
@@ -195,7 +195,7 @@ sbatch scripts/data_preprocessing/4_merge_data.sh
 
   ```bash
   sbatch \
-    --export=ALL,K=4,BASE_DIR=/path/to/project_root,SPLIT_TYPE=split_easy \
+    --export=ALL,K=4,BASE_DIR=/path/to/project_root,SPLIT_TYPE=split_distant_set \
     scripts/train_gcn.sh
   ```
 
@@ -261,11 +261,11 @@ OUTPUT_FILE=results_k4/GradCam_mat_all_with_pos.parquet \
 compute_mat_rmat_attributions.sh
 ```
 
-### 4. Explainability for Trained Models
+### 2. Explainability for Trained Models
 
 This section describes how to compute **explainability/attribution scores** for both GCN and fingerprint-based models (MLP, RF, XGB) using SHAP or gradient-based methods.
 
-#### 4.1 Fingerprint-based Models (MLP / RF / XGB)
+#### 2.1 Fingerprint-based Models (MLP / RF / XGB)
 
 - **MLP**
   - SHAP DeepExplainer for feature-level importance.
@@ -285,7 +285,7 @@ This section describes how to compute **explainability/attribution scores** for 
 - `{model}_{split}_fidelity.csv` → fidelity, accuracy, masked_accuracy.
 - `{model}_{split}_per_atom.parquet` → per-atom attribution values.
 
-#### 4.2 GCN Models
+#### 2.2 GCN Models
 
 - **Grad-CAM**: identify top-k influential nodes (atoms) in graph convolution layers.
 - **Vanilla Gradients**: node-level gradient importance.

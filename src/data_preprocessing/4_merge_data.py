@@ -41,8 +41,8 @@ def main():
 
     print(f"[INFO] Loading negative test:  {neg_test_file}")
     df_neg_test = pd.read_parquet(neg_test_file)
-    df_neg_test["split_easy"] = "test"
-    df_neg_test["split_hard"] = "test"
+    df_neg_test["split_distant_set"] = "test"
+    df_neg_test["split_close_set"] = "test"
 
     # Load all tanimoto train chunks
     train_files = sorted(glob(os.path.join(
@@ -56,11 +56,11 @@ def main():
     df_train_val = pd.concat([pd.read_parquet(f) for f in train_files], ignore_index=True)
     print(f"[INFO] Loaded tanimoto train size: {len(df_train_val)}")
 
-    df_pos["split_easy"] = df_pos["split"]
-    df_pos["split_hard"] = df_pos["split"]
+    df_pos["split_distant_set"] = df_pos["split"]
+    df_pos["split_close_set"] = df_pos["split"]
 
-    df_train_val["split_easy"] = np.nan
-    df_train_val["split_hard"] = np.nan
+    df_train_val["split_distant_set"] = np.nan
+    df_train_val["split_close_set"] = np.nan
 
     df_sorted = df_train_val.sort_values("tanimoto_to_positive")
     n_frac = max(int(len(df_sorted) * args.frac), 1)
@@ -68,8 +68,8 @@ def main():
     easy_idx = df_sorted.head(n_frac).index
     hard_idx = df_sorted.tail(n_frac).index
 
-    df_train_val.loc[easy_idx, "split_easy"] = df_train_val.loc[easy_idx, "split"]
-    df_train_val.loc[hard_idx, "split_hard"] = df_train_val.loc[hard_idx, "split"]
+    df_train_val.loc[easy_idx, "split_distant_set"] = df_train_val.loc[easy_idx, "split"]
+    df_train_val.loc[hard_idx, "split_close_set"] = df_train_val.loc[hard_idx, "split"]
 
     df_all = pd.concat([df_pos, df_train_val, df_neg_test], ignore_index=True)
     df_all = df_all.sample(frac=1, random_state=123).reset_index(drop=True)

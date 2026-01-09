@@ -91,9 +91,9 @@ if __name__ == "__main__":
     df = pd.concat([pd.read_parquet(f) for f in files], ignore_index=True)
 
     if args.split == "easy":
-        df["split"] = df["split_easy"]
+        df["split"] = df["split_distant_set"]
     elif args.split == "hard":
-        df["split"] = df["split_hard"]
+        df["split"] = df["split_close_set"]
 
     logging.info(f"Loaded {len(df)} rows from dataset {args.dataset}")
     train_and_evaluate(df, split_name=args.split, checkpoint_dir=checkpoint_dir)
