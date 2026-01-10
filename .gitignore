@@ -216,4 +216,5 @@ hf
 *.csv
 *.pth
 commands
-*.iml
+*.iml.DS_Store
+.DS_Store
