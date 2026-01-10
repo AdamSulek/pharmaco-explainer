@@ -186,7 +186,7 @@ def main():
 
     ap.add_argument("--selection-metric", choices=["val_auc", "val_loss"], default="val_auc")
     ap.add_argument("--ckpt-dir", default=None)
-    ap.add_argument("--checkpoint-path", default=None)
+    ap.add_argument("--checkpoint_path", default=None)
     ap.add_argument("--results-pickle", default=None)
 
     args = ap.parse_args()
@@ -199,9 +199,11 @@ def main():
     if args.model == "rmat":
         model = RMatModel.from_pretrained("rmat_4M")
         featurizer = RMatFeaturizer.from_pretrained("rmat_4M")
-    else:
+    elif args.model == "mat":
         model = MatModel.from_pretrained("mat_masking_20M")
         featurizer = MatFeaturizer.from_pretrained("mat_masking_20M")
+    else:
+        raise ValueError(f"Unsupported model: {args.model}")
     model.to(device)
 
     # --- Dataset paths ---

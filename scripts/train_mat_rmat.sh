@@ -106,7 +106,7 @@ CMD=( "${PYTHON}" -u "${SCRIPT}"
   --subset "${SUBSET}"
   --difficulty "${DIFFICULTY}"
   --selection-metric val_auc
-  --checkpoint-path "${CKPT_PATH}"
+  --checkpoint_path "${CKPT_PATH}"
   --results-pickle "${RESULTS_PKL}"
 )
 
