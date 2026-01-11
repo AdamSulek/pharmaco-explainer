@@ -2,14 +2,33 @@
 
 ## Project overview
 
+This repository introduces a benchmark dataset and evaluation framework
+designed to assess pharmacophore explainability in molecular
+machine learning models.
+
+<p align="center">
+  <img src="figures/dataset_construction.png" width="900">
+</p>
+
+The dataset consists of molecules uniquely matched to a reference pharmacophore using a single, unambiguous atom mapping, ensuring reliable atom-level explainability.
+
+**Post-hoc explainability benchmarking.**  
+State-of-the-art models based on fragment fingerprints (ECFP) and distance-aware representations are evaluated to assess whether explanations are consistent with pharmacophore geometry.
+
+<p align="center">
+  <img src="figures/benchmark_models.png" width="900">
+</p>
+
 This repository implements a full pipeline for pharmacophore-based dataset construction,
 graph and transformer-based molecular modeling, and model explainability.
 
 The project covers:
+
+- geometric pharmacophore alignment,
 - pharmacophore-based labeling of large molecular libraries,
-- construction of graph and MAT/RMAT representations,
-- training of ML and deep learning models,
-- post-hoc explainability (per-atom attributions).
+- construction of graph-based and MAT/RMAT representations,
+- training of machine learning and deep learning models,
+- post-hoc explainability through per-atom attribution methods.
 
 The pipeline is designed to run at scale on HPC (SLURM).
 
@@ -47,7 +66,7 @@ These conformers are used as the input ensemble for subsequent pharmacophore ali
 Conformer generation is performed with:
 
 ```bash
-python data_preparation/prepare_sdf_for_screening.py \
+python src/dataset_preparation/prepare_sdf_for_screening.py \
   --in-parquet path/to/input.parquet \
   --out-dir path/to/output_sdfs \
   --target-confs 50
