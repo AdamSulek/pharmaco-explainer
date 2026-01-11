@@ -900,18 +900,20 @@ def main() -> None:
     os.makedirs(args.plots_root, exist_ok=True)
     os.makedirs(args.out_root, exist_ok=True)
 
-    if args.hypo_json:
-        if not os.path.isfile(args.hypo_json):
-            logging.error("Hypothesis JSON not found: %s", args.hypo_json)
-            sys.exit(1)
-        with open(args.hypo_json, "r", encoding="utf-8") as f:
-            hypothesis_raw = json.load(f)
-    else:
-        hypothesis_raw = {
-            "HBA": [[13.62, -35.69, 13.90]],
-            "HBD": [[11.27, -35.87, 14.33]],
-            "aromatic": [[14.14, -36.57, 12.96]],
-        }
+    if not args.hypo_json:
+        logging.error(
+            "No pharmacophore hypothesis provided. "
+            "Please specify --hypo-json with a valid pharmacophore definition."
+        )
+        sys.exit(1)
+
+    if not os.path.isfile(args.hypo_json):
+        logging.error("Hypothesis JSON not found: %s", args.hypo_json)
+        sys.exit(1)
+
+    with open(args.hypo_json, "r", encoding="utf-8") as f:
+        hypothesis_raw = json.load(f)
+
 
     def _as_tuple3(x) -> Tuple[float, float, float]:
         return (float(x[0]), float(x[1]), float(x[2]))
