@@ -1,7 +1,7 @@
 #!/bin/bash -l
 #SBATCH --job-name=train_model
-#SBATCH --output=${PHARM_PROJECT_ROOT}/logs/train/%x_%j.out
-#SBATCH --error=${PHARM_PROJECT_ROOT}/logs/train/%x_%j.err
+#SBATCH --output=logs/train/%x_%j.out
+#SBATCH --error=logs/train/%x_%j.err
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=192G
 #SBATCH --time=16:00:00
@@ -17,11 +17,11 @@ set -u
 export LD_PRELOAD="$CONDA_PREFIX/lib/libstdc++.so.6"
 
 # --------- PARAMS ---------
-MODEL="${1:-xgb}"
-SPLIT="${2:-easy}"
-DATASET="${3:-k3}"
+MODEL="${1:-mlp}"
+SPLIT="${2:-all}" #all, split_close_set, split_distant_set
+DATASET="${3:-k3_small}"
 
-INPUT_DIR="${INPUT_DIR:-${PHARM_PROJECT_ROOT}/data/${DATASET}/processed}"
+INPUT_DIR="${INPUT_DIR:-${PHARM_PROJECT_ROOT}/data/${DATASET}}"
 CHECKPOINT_DIR="${CHECKPOINT_DIR:-${PHARM_PROJECT_ROOT}/results/checkpoints/${DATASET}}"
 
 mkdir -p "$CHECKPOINT_DIR"
@@ -29,7 +29,6 @@ mkdir -p "$CHECKPOINT_DIR"
 echo "[INFO] Training MODEL=$MODEL, SPLIT=$SPLIT, DATASET=$DATASET"
 echo "[INFO] Checkpoint dir: $CHECKPOINT_DIR"
 
-# wybór skryptu w zależności od modelu
 case "$MODEL" in
     xgb)
         python ${PHARM_PROJECT_ROOT}/src/training/models/train_xgb.py \

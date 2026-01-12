@@ -72,7 +72,8 @@ def main():
     args = parser.parse_args()
 
     in_path = project_path("data", args.dataset, f"{args.dataset}.parquet")
-    out_path = project_path("data", args.dataset, f"{args.dataset}_split.parquet")
+    os.makedirs(project_path("data", args.dataset, "preprocessing"), exist_ok=True)
+    out_path = project_path("data", args.dataset, "preprocessing", f"{args.dataset}_scaffold_split.parquet")
 
     df = pd.read_parquet(in_path)
     df["scaffold"] = df["smiles"].apply(smiles_to_scaffold)

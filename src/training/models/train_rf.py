@@ -71,28 +71,24 @@ def train_and_evaluate(df, split_name, checkpoint_dir):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", default="k3", choices=["k3", "k4", "k5"])
-    parser.add_argument("--split", default="easy", choices=["easy", "hard", "all"])
+    parser.add_argument("--dataset", default="k3")
+    parser.add_argument("--split", default="easy")
     args = parser.parse_args()
 
     PROJECT_ROOT = os.environ.get("PHARM_PROJECT_ROOT")
     if PROJECT_ROOT is None:
         raise EnvironmentError("Please set the PHARM_PROJECT_ROOT environment variable!")
 
-    input_dir = os.path.join(PROJECT_ROOT, "data", args.dataset, "processed")
+    input_dir = os.path.join(PROJECT_ROOT, "data", args.dataset)
     checkpoint_dir = os.path.join(PROJECT_ROOT, "results", "checkpoints", args.dataset)
 
     seed_everything(123)
 
-    files = sorted(glob(os.path.join(input_dir, "final_dataset_part_*.parquet")))
-    if not files:
-        raise FileNotFoundError(f"No dataset parts found in: {input_dir}")
+    df = pd.read_parquet(os.path.join(input_dir, f"{args.dataset}_split.parquet"))
 
-    df = pd.concat([pd.read_parquet(f) for f in files], ignore_index=True)
-
-    if args.split == "easy":
+    if args.split == "split_distant_set":
         df["split"] = df["split_distant_set"]
-    elif args.split == "hard":
+    elif args.split == "split_close_set":
         df["split"] = df["split_close_set"]
 
     logging.info(f"Loaded {len(df)} rows from dataset {args.dataset}")

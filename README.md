@@ -193,11 +193,10 @@ in scripts/data_preprocessing/.
 
 Running preprocessing (HPC)
 ```
-sbatch scripts/data_preprocessing/0_add_split.sh
-sbatch scripts/data_preprocessing/1_divide.sh
-sbatch scripts/data_preprocessing/2_generate_fingerprint.sh
-sbatch scripts/data_preprocessing/3_add_tanimoto.sh
-sbatch scripts/data_preprocessing/4_merge_data.sh
+sbatch scripts/data_preprocessing/add_scaffold_split.sh
+sbatch scripts/data_preprocessing/generate_ecfp.sh
+sbatch scripts/data_preprocessing/compute_tanimoto.sh
+sbatch scripts/data_preprocessing/add_distance_split.sh
 ```
 
 ## Run Training

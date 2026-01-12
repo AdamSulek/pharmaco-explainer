@@ -85,25 +85,16 @@ def load_data_from_df(df):
 
 def train_and_evaluate(dataset, split_choice, seed=123):
     root = get_project_root()
-    input_dir = os.path.join(root, "data", dataset, "processed")
+    input_dir = os.path.join(root, "data", dataset)
     checkpoint_dir = os.path.join(root, "results", "checkpoints", dataset)
     os.makedirs(checkpoint_dir, exist_ok=True)
 
-    files = sorted(glob(os.path.join(input_dir, "final_dataset_part_*.parquet")))
-    if not files:
-        raise FileNotFoundError(f"No parquet files found in {input_dir}")
+    df = pd.read_parquet(os.path.join(input_dir, f"{args.dataset}_split.parquet"))
 
-    df = pd.concat([pd.read_parquet(f) for f in files], ignore_index=True)
-    logging.info(f"Loaded {len(df)} rows from {len(files)} files")
-
-    if split_choice == "easy":
+    if split_choice == "split_distant_set":
         df["split"] = df["split_distant_set"]
-    elif split_choice == "hard":
+    elif split_choice == "split_close_set":
         df["split"] = df["split_close_set"]
-    elif split_choice == "all":
-        df["split"] = df["split_distant_set"]
-    else:
-        raise ValueError(f"Unknown split choice: {split_choice}")
 
     unique_splits = set(df["split"].dropna().unique())
     if "train" not in unique_splits or "test" not in unique_splits:
@@ -231,8 +222,8 @@ def train_and_evaluate(dataset, split_choice, seed=123):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", default="k3", choices=["k3","k4","k5"])
-    parser.add_argument("--split", choices=["easy", "hard", "all"], default="easy")
+    parser.add_argument("--dataset", default="k3")
+    parser.add_argument("--split", default="easy")
     parser.add_argument("--seed", type=int, default=123)
     args = parser.parse_args()
 
