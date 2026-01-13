@@ -7,7 +7,6 @@ import pandas as pd
 import xgboost as xgb
 import joblib
 from itertools import product
-from glob import glob
 from sklearn.metrics import (
     roc_auc_score,
     average_precision_score,
@@ -24,28 +23,31 @@ def seed_everything(seed):
     np.random.seed(seed)
     random.seed(seed)
 
+def unpack_ecfp(fp, n_bits=1024):
+    if isinstance(fp, (bytes, bytearray)):
+        return np.unpackbits(
+            np.frombuffer(fp, dtype=np.uint8)
+        )[:n_bits].astype(np.uint8)
+    return np.asarray(fp, dtype=np.uint8)
+
+def make_X(df):
+    return np.stack(df["X_ecfp_2"].map(unpack_ecfp).values)
+
 PARAM_GRID = {
-    'learning_rate': [0.05, 0.1],
-    'max_depth': [6, 8],
-    'n_estimators': [100, 300],
-    'colsample_bytree': [0.7, 0.9],
+    "learning_rate": [0.05, 0.1],
+    "max_depth": [6, 8],
+    "n_estimators": [100, 300],
+    "colsample_bytree": [0.7, 0.9],
 }
 
 PARAM_COMBINATIONS = list(product(*PARAM_GRID.values()))
 PARAM_KEYS = list(PARAM_GRID.keys())
 
 def log_split_stats(train_df, val_df, test_df):
-    def stats(df, name):
-        return (name,
-                len(df),
-                (df['y'] == 1).sum(),
-                (df['y'] == 0).sum())
-    for name, total, pos, neg in [
-        stats(train_df, "TRAIN"),
-        stats(val_df,   "VAL"),
-        stats(test_df,  "TEST")
-    ]:
-        logging.info(f"{name}: {total} rows | Positives: {pos}, Negatives: {neg}")
+    for name, d in [("TRAIN", train_df), ("VAL", val_df), ("TEST", test_df)]:
+        logging.info(
+            f"{name}: {len(d)} rows | Positives: {(d['y']==1).sum()}, Negatives: {(d['y']==0).sum()}"
+        )
 
 def train_and_evaluate(df, checkpoint_dir, split_name, tree_method="hist"):
     best_model, best_roc_auc, best_params = None, 0, None
@@ -59,8 +61,10 @@ def train_and_evaluate(df, checkpoint_dir, split_name, tree_method="hist"):
 
     os.makedirs(checkpoint_dir, exist_ok=True)
 
-    X_train, y_train = np.stack(train_df["X_ecfp_2"].values), train_df['y'].values
-    X_val, y_val     = np.stack(val_df["X_ecfp_2"].values), val_df['y'].values
+    X_train = make_X(train_df)
+    y_train = train_df["y"].values
+    X_val   = make_X(val_df)
+    y_val   = val_df["y"].values
 
     for param_values in PARAM_COMBINATIONS:
         params = dict(zip(PARAM_KEYS, param_values))
@@ -76,12 +80,17 @@ def train_and_evaluate(df, checkpoint_dir, split_name, tree_method="hist"):
         roc_auc = roc_auc_score(y_val, y_val_proba)
 
         if roc_auc > best_roc_auc:
-            best_roc_auc, best_model, best_params = roc_auc, model, params
-            model_path = os.path.join(checkpoint_dir, f"best_model_xgb_{split_name}.joblib")
+            best_roc_auc = roc_auc
+            best_model = model
+            best_params = params
+            model_path = os.path.join(
+                checkpoint_dir, f"best_model_xgb_{split_name}.joblib"
+            )
             joblib.dump(best_model, model_path)
             logging.info(f"New BEST model saved! ROC-AUC: {roc_auc:.4f}, Params: {params}")
 
-    X_test, y_test = np.stack(test_df["X_ecfp_2"].values), test_df['y'].values
+    X_test = make_X(test_df)
+    y_test = test_df["y"].values
     y_test_proba = best_model.predict_proba(X_test)[:, 1]
     y_pred = (y_test_proba >= 0.5).astype(int)
 
@@ -109,9 +118,13 @@ if __name__ == "__main__":
     seed_everything(123)
 
     input_dir = os.path.join(PROJECT_ROOT, "data", args.dataset)
-    checkpoint_dir = os.path.join(PROJECT_ROOT, "results", "checkpoints", args.dataset)
+    checkpoint_dir = os.path.join(
+        PROJECT_ROOT, "results", "checkpoints", args.dataset
+    )
 
-    df = pd.read_parquet(os.path.join(input_dir, f"{args.dataset}_split.parquet"))
+    df = pd.read_parquet(
+        os.path.join(input_dir, f"{args.dataset}_split.parquet")
+    )
 
     if args.split == "split_distant_set":
         df["split"] = df["split_distant_set"]

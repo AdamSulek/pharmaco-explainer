@@ -43,14 +43,14 @@ export PHARM_PROJECT_ROOT=/path/to/project
 
 ### Environment setup
 
-Two Conda environments are provided:
-- `conda_env_x86.yaml` – for x86_64 architectures
+Two Conda environments are provided in envs directory:
+- `x86.yaml` – for x86_64 architectures
 - `aarch64.yaml` – for ARM / GH200 nodes
 
 Create environment with:
 
 ```bash
-conda env create -f conda_env_x86.yaml
+conda env create -f x86.yaml
 conda activate pharmaco-explainer
 ```
 
@@ -174,7 +174,7 @@ model-ready tabular datasets by:
 * merging all features into final datasets.
 
 Final outputs are stored under:
-data/k{K}/processed/
+**data/k{K}**
 
 Pipeline steps (for custom data):
 

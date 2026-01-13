@@ -5,8 +5,8 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=364G
 #SBATCH --time=02:00:00
-#SBATCH --partition=plgrid-gpu-gh200
-#SBATCH -A plgsonata19-gpu-gh200
+#SBATCH --partition=<partition>
+#SBATCH -A <A>>
 #SBATCH --gres=gpu:1
 
 set -euo pipefail
@@ -14,9 +14,9 @@ set -euo pipefail
 LOG() { echo "[$(date +'%Y-%m-%d %H:%M:%S')] $*"; }
 DIE() { echo "[ERROR] $*" >&2; exit 1; }
 
-REPO_ROOT="${REPO_ROOT:-/net/storage/pr3/plgrid/plggsanodrugs/cr/huggingmolecules}"
-CONDA_SH="${CONDA_SH:-/net/storage/pr3/plgrid/plggsanodrugs/miniconda-arm/etc/profile.d/conda.sh}"
-CONDA_ENV="${CONDA_ENV:-savi-arm-hm}"
+REPO_ROOT="${REPO_ROOT:-/path/to/repo}"
+CONDA_SH="${CONDA_SH:-/path/to/conda}"
+CONDA_ENV="${CONDA_ENV:-pharmaco-explainer}"
 
 METHOD="${METHOD:-vg}"
 MODEL="${MODEL:-mat}"

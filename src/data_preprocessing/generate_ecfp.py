@@ -2,7 +2,7 @@ import argparse
 import os
 import pandas as pd
 from skfp.fingerprints import ECFPFingerprint
-
+import numpy as np
 
 def project_path(*parts):
     root = os.environ.get("PHARM_PROJECT_ROOT")
@@ -23,10 +23,16 @@ def process_file(in_path, out_path, fp_gen, fp_name, chunk_size=50_000):
 
     smiles = df["smiles"].tolist()
 
+
     fps = []
     for start in range(0, len(smiles), chunk_size):
         sub = smiles[start:start + chunk_size]
-        fps.extend(fp_gen.transform(sub))
+        out = fp_gen.transform(sub)
+
+        for fp in out:
+            arr = np.asarray(fp, dtype=np.uint8)
+            packed = np.packbits(arr)
+            fps.append(packed.tobytes())
 
     if len(fps) != len(df):
         raise RuntimeError(

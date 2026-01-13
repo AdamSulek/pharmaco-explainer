@@ -168,7 +168,6 @@ def main():
                     help="Dataset difficulty selection. 'easy'/'hard' filters samples using split_distant_set/split_close_set.")
 
     ap.add_argument("--data-root", dest="data_root",
-                    default="/net/storage/pr3/plgrid/plggsanodrugs/pharmaco_explainer",
                     help="Project root containing 'pickle_dataloaders' and 'data'.")
 
     ap.add_argument("--data-split-file", dest="data_split_file", default=None,

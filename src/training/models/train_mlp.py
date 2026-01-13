@@ -4,8 +4,6 @@ import itertools
 import logging
 import os
 import random
-from glob import glob
-
 import numpy as np
 import pandas as pd
 import torch
@@ -29,23 +27,25 @@ PARAM_KEYS = list(PARAM_GRID.keys())
 def get_project_root():
     root = os.getenv("PHARM_PROJECT_ROOT")
     if not root:
-        raise EnvironmentError(
-            "Environment variable PHARM_PROJECT_ROOT is not set.\n"
-            "Run: export PHARM_PROJECT_ROOT=/path/to/project"
-        )
+        raise EnvironmentError("PHARM_PROJECT_ROOT not set")
     return root
+
+def unpack_ecfp(fp, n_bits=2048):
+    if isinstance(fp, (bytes, bytearray)):
+        return np.unpackbits(np.frombuffer(fp, dtype=np.uint8))[:n_bits].astype(np.float32)
+    return np.asarray(fp, dtype=np.float32)
 
 class MLP(torch.nn.Module):
     def __init__(self, in_features=2048, hidden_dim=128, num_hidden_layers=2, dropout_rate=0.2):
         super().__init__()
         layers = []
-        last_dim = in_features
+        last = in_features
         for _ in range(num_hidden_layers):
-            layers.append(torch.nn.Linear(last_dim, hidden_dim))
+            layers.append(torch.nn.Linear(last, hidden_dim))
             layers.append(torch.nn.ReLU(inplace=True))
             layers.append(torch.nn.Dropout(dropout_rate))
-            last_dim = hidden_dim
-        layers.append(torch.nn.Linear(last_dim, 1))
+            last = hidden_dim
+        layers.append(torch.nn.Linear(last, 1))
         self.net = torch.nn.Sequential(*layers)
 
     def forward(self, x):
@@ -53,10 +53,10 @@ class MLP(torch.nn.Module):
 
 class MyDataset(Dataset):
     def __init__(self, X_list, y_list):
-        arr = np.array(X_list, dtype=np.float32)
-        if arr.ndim != 2 or arr.shape[1] != 2048:
-            raise ValueError(f"Bad ECFP shape: {arr.shape}, expected (?, 2048)")
-        self.X = torch.tensor(arr, dtype=torch.float32)
+        X = np.stack([unpack_ecfp(x) for x in X_list])
+        if X.ndim != 2 or X.shape[1] != 2048:
+            raise ValueError(f"Bad ECFP shape: {X.shape}")
+        self.X = torch.tensor(X, dtype=torch.float32)
         self.y = torch.tensor(np.array(y_list), dtype=torch.float32)
 
     def __len__(self):
@@ -65,7 +65,7 @@ class MyDataset(Dataset):
     def __getitem__(self, idx):
         return self.X[idx], self.y[idx]
 
-def seed_everything(seed: int):
+def seed_everything(seed):
     np.random.seed(seed)
     random.seed(seed)
     torch.manual_seed(seed)
@@ -75,13 +75,12 @@ def seed_everything(seed: int):
     torch.backends.cudnn.benchmark = False
 
 def load_data_from_df(df):
-    datasets = {"train": {"X": [], "y": []}, "val": {"X": [], "y": []}, "test": {"X": [], "y": []}}
-    for _, row in df.iterrows():
-        split = row["split"]
-        if split in datasets:
-            datasets[split]["X"].append(row["X_ecfp_2"])
-            datasets[split]["y"].append(row['y'])
-    return {k: MyDataset(v["X"], v["y"]) for k, v in datasets.items()}
+    out = {"train": {"X": [], "y": []}, "val": {"X": [], "y": []}, "test": {"X": [], "y": []}}
+    for _, r in df.iterrows():
+        if r["split"] in out:
+            out[r["split"]]["X"].append(r["X_ecfp_2"])
+            out[r["split"]]["y"].append(r["y"])
+    return {k: MyDataset(v["X"], v["y"]) for k, v in out.items()}
 
 def train_and_evaluate(dataset, split_choice, seed=123):
     root = get_project_root()
@@ -89,136 +88,109 @@ def train_and_evaluate(dataset, split_choice, seed=123):
     checkpoint_dir = os.path.join(root, "results", "checkpoints", dataset)
     os.makedirs(checkpoint_dir, exist_ok=True)
 
-    df = pd.read_parquet(os.path.join(input_dir, f"{args.dataset}_split.parquet"))
+    df = pd.read_parquet(os.path.join(input_dir, f"{dataset}_split.parquet"))
 
     if split_choice == "split_distant_set":
         df["split"] = df["split_distant_set"]
     elif split_choice == "split_close_set":
         df["split"] = df["split_close_set"]
 
-    unique_splits = set(df["split"].dropna().unique())
-    if "train" not in unique_splits or "test" not in unique_splits:
-        raise ValueError(f"Missing train/test in splits: {unique_splits}")
-
     val_keys = {"val", "valid", "validation", "dev"}
-    val_name = next((s for s in unique_splits if s in val_keys), None)
-    if val_name is None:
-        raise ValueError(f"No validation split found: {unique_splits}")
+    val_name = next(s for s in df["split"].unique() if s in val_keys)
     df["split"] = df["split"].replace({val_name: "val"})
-    logging.info(f"Using validation split: {val_name}")
 
     datasets = load_data_from_df(df)
-    logging.info(f"Dataset sizes: train={len(datasets['train'])}, val={len(datasets['val'])}, test={len(datasets['test'])}")
 
     test_loader = DataLoader(datasets["test"], batch_size=64, shuffle=False)
 
-    y_train = df[df["split"] == "train"]['y'].values
+    y_train = df[df["split"] == "train"]["y"].values
     pos = y_train.sum()
     neg = len(y_train) - pos
-    pos_weight = torch.tensor(neg / max(pos, 1), dtype=torch.float32).to(device)
+    pos_weight = torch.tensor(neg / max(pos, 1), device=device)
 
-    best_overall = {"roc": -1, "params": None, "model_state": None}
+    best = {"roc": -1, "params": None, "state": None}
 
     for comb in PARAM_COMBINATIONS:
         params = dict(zip(PARAM_KEYS, comb))
-        logging.info(f"Training with params: {params}")
 
         train_loader = DataLoader(datasets["train"], batch_size=params["batch_size"], shuffle=True)
         val_loader = DataLoader(datasets["val"], batch_size=params["batch_size"], shuffle=False)
 
         model = MLP(
-            in_features=2048,
             hidden_dim=params["hidden_dim"],
             num_hidden_layers=params["num_hidden_layers"],
             dropout_rate=params["dropout_rate"]
         ).to(device)
 
-        optimizer = optim.Adam(model.parameters(), lr=params["learning_rate"])
-        criterion = torch.nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+        opt = optim.Adam(model.parameters(), lr=params["learning_rate"])
+        loss_fn = torch.nn.BCEWithLogitsLoss(pos_weight=pos_weight)
 
-        best_val_roc = -1
+        best_val = -1
         patience = 7
-        no_improve = 0
+        stall = 0
 
-        for epoch in range(25):
+        for _ in range(25):
             model.train()
             for Xb, yb in train_loader:
                 Xb, yb = Xb.to(device), yb.to(device)
-                optimizer.zero_grad()
-                logits = model(Xb).view(-1)
-                loss = criterion(logits, yb.view(-1))
+                opt.zero_grad()
+                loss = loss_fn(model(Xb).view(-1), yb)
                 loss.backward()
-                optimizer.step()
+                opt.step()
 
             model.eval()
-            val_labels, val_preds = [], []
+            ys, ps = [], []
             with torch.no_grad():
                 for Xb, yb in val_loader:
-                    logits = model(Xb.to(device)).view(-1)
-                    val_preds.extend(torch.sigmoid(logits).cpu().numpy())
-                    val_labels.extend(yb.numpy())
+                    p = torch.sigmoid(model(Xb.to(device)).view(-1))
+                    ps.extend(p.cpu().numpy())
+                    ys.extend(yb.numpy())
 
             try:
-                val_roc = roc_auc_score(val_labels, val_preds)
+                roc = roc_auc_score(ys, ps)
             except:
-                val_roc = 0
+                roc = 0
 
-            logging.info(f"[{params}] epoch {epoch+1} val_roc={val_roc:.4f}")
-
-            if val_roc > best_val_roc:
-                best_val_roc = val_roc
-                no_improve = 0
+            if roc > best_val:
+                best_val = roc
+                stall = 0
                 best_state = model.state_dict()
             else:
-                no_improve += 1
-                if no_improve >= patience:
+                stall += 1
+                if stall >= patience:
                     break
 
-        if best_val_roc > best_overall["roc"]:
-            best_overall["roc"] = best_val_roc
-            best_overall["params"] = params
-            best_overall["model_state"] = best_state
+        if best_val > best["roc"]:
+            best = {"roc": best_val, "params": params, "state": best_state}
+            torch.save(
+                {"model_state_dict": best_state, "params": params},
+                os.path.join(checkpoint_dir, f"best_model_mlp_{split_choice}.pth")
+            )
 
-            save_path = os.path.join(checkpoint_dir, f"best_model_mlp_{split_choice}.pth")
-            torch.save({
-                "model_state_dict": best_state,
-                "params": params,
-                "in_features": 2048
-            }, save_path)
-            logging.info(f"Saved BEST model → {save_path}")
-
-    # ----- FINAL TEST EVAL -----
-    params = best_overall["params"]
+    params = best["params"]
     model = MLP(
-        in_features=2048,
         hidden_dim=params["hidden_dim"],
         num_hidden_layers=params["num_hidden_layers"],
         dropout_rate=params["dropout_rate"]
     ).to(device)
-    model.load_state_dict(best_overall["model_state"])
+    model.load_state_dict(best["state"])
     model.eval()
 
-    all_labels, all_preds = [], []
+    ys, ps = [], []
     with torch.no_grad():
         for Xb, yb in test_loader:
-            logits = model(Xb.to(device)).view(-1)
-            all_preds.extend(torch.sigmoid(logits).cpu().numpy())
-            all_labels.extend(yb.numpy())
+            p = torch.sigmoid(model(Xb.to(device)).view(-1))
+            ps.extend(p.cpu().numpy())
+            ys.extend(yb.numpy())
 
-    test_roc = roc_auc_score(all_labels, all_preds)
-    test_pr = average_precision_score(all_labels, all_preds)
-    pred_labels = (np.array(all_preds) >= 0.5).astype(int)
-    test_acc = accuracy_score(all_labels, pred_labels)
-    test_f1 = f1_score(all_labels, pred_labels)
-    cm = confusion_matrix(all_labels, pred_labels)
+    pred = (np.array(ps) >= 0.5).astype(int)
 
-    logging.info("==== FINAL TEST METRICS ====")
-    logging.info(f"ROC-AUC: {test_roc:.4f}")
-    logging.info(f"PR-AUC: {test_pr:.4f}")
-    logging.info(f"ACC: {test_acc:.4f}, F1: {test_f1:.4f}")
-    logging.info(f"Confusion matrix:\n{cm}")
-    logging.info(f"Best params:\n{params}")
-
+    logging.info(f"ROC-AUC: {roc_auc_score(ys, ps):.4f}")
+    logging.info(f"PR-AUC: {average_precision_score(ys, ps):.4f}")
+    logging.info(f"ACC: {accuracy_score(ys, pred):.4f}")
+    logging.info(f"F1: {f1_score(ys, pred):.4f}")
+    logging.info(f"CM:\n{confusion_matrix(ys, pred)}")
+    logging.info(f"BEST PARAMS: {params}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -228,4 +200,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     seed_everything(args.seed)
-    train_and_evaluate(args.dataset, args.split, seed=args.seed)
+    train_and_evaluate(args.dataset, args.split, args.seed)
