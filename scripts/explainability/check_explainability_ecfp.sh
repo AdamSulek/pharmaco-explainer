@@ -1,8 +1,8 @@
 #!/bin/bash -l
-#SBATCH --job-name=explain
-#SBATCH --output=${PHARM_PROJECT_ROOT}/logs/explainability/%x_%j.out
-#SBATCH --error=${PHARM_PROJECT_ROOT}/logs/explainability/%x_%j.err
-#SBATCH --cpus-per-task=16
+#SBATCH --job-name=check_explainability_ecfp
+#SBATCH --output=logs/explainability/%x_%j.out
+#SBATCH --error=logs/explainability/%x_%j.err
+#SBATCH --cpus-per-task=64
 #SBATCH --mem=140G
 #SBATCH --time=16:00:00
 #SBATCH --partition=general
@@ -10,8 +10,8 @@
 
 set -eo pipefail
 
-MODEL="gcn"
-INPUT="easy"
+MODEL="xgb"
+INPUT="split_distant_set" #all split_close_set split_distant_set
 K_PAR="k3"
 
 while [[ $# -gt 0 ]]; do
@@ -35,20 +35,20 @@ MODEL_UPPER=$(echo "${MODEL}" | tr '[:lower:]' '[:upper:]')
 
 case "$MODEL_UPPER" in
     RF)
-        python ${PHARM_PROJECT_ROOT}/src/training/models/check_explainability.py \
-            --model RF --dataset "$K_PAR" --split "$INPUT"
+        python ${PHARM_PROJECT_ROOT}/src/explainability/check_explainability_ecfp.py \
+            --model rf --dataset "$K_PAR" --split "$INPUT"
         ;;
     XGB)
-        python ${PHARM_PROJECT_ROOT}/src/training/models/check_explainability.py \
-            --model XGB --dataset "$K_PAR" --split "$INPUT"
+        python ${PHARM_PROJECT_ROOT}/src/explainability/check_explainability_ecfp.py \
+            --model xgb --dataset "$K_PAR" --split "$INPUT"
         ;;
     MLP)
-        python ${PHARM_PROJECT_ROOT}/src/training/models/check_explainability.py \
-            --model MLP --dataset "$K_PAR" --split "$INPUT"
+        python ${PHARM_PROJECT_ROOT}/src/explainability/check_explainability_ecfp.py \
+            --model mlp --dataset "$K_PAR" --split "$INPUT"
         ;;
     MLP_VG)
-        python ${PHARM_PROJECT_ROOT}/src/training/models/check_explainability.py \
-            --model MLP_VG --dataset "$K_PAR" --split "$INPUT"
+        python ${PHARM_PROJECT_ROOT}/src/explainability/check_explainability_ecfp.py \
+            --model mlp_vg --dataset "$K_PAR" --split "$INPUT"
         ;;
     *)
         echo "[ERROR] Unknown MODEL=${MODEL_UPPER}"
