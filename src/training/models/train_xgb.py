@@ -23,7 +23,7 @@ def seed_everything(seed):
     np.random.seed(seed)
     random.seed(seed)
 
-def unpack_ecfp(fp, n_bits=1024):
+def unpack_ecfp(fp, n_bits=2048):
     if isinstance(fp, (bytes, bytearray)):
         return np.unpackbits(
             np.frombuffer(fp, dtype=np.uint8)

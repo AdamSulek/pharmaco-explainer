@@ -1,6 +1,5 @@
 import argparse
 import os
-import glob
 import joblib
 import numpy as np
 import pandas as pd
@@ -112,155 +111,89 @@ def vanilla_gradients(torch_model, X):
     return grads
 
 
-def aggregate_atom_from_bitinfo(bit_info, shap_vec):
-    atom_map = {}
-    for bit, atom_list in bit_info.items():
-        for (atom_idx, radius) in atom_list:
-            atom_idx = int(atom_idx)
-            atom_map.setdefault(atom_idx, {"shap_values": [], "radiuses": []})
-            val = float(shap_vec[int(bit)]) if int(bit) < len(shap_vec) else 0.0
-            atom_map[atom_idx]["shap_values"].append(val)
-            atom_map[atom_idx]["radiuses"].append(int(radius))
+def aggregate_atom_per_atom(bit_info, importance_vec):
     rows = []
-    for atom_idx, data in atom_map.items():
-        rows.append({"atom_index": int(atom_idx), "shap_values": data["shap_values"], "radiuses": data["radiuses"]})
+    for bit, atom_list in bit_info.items():
+        if bit >= len(importance_vec):
+            val = 0.0
+        else:
+            val = float(importance_vec[bit])
+        for atom_idx, radius in atom_list:
+            rows.append({
+                "atom_index": int(atom_idx),
+                "atom_importance": [val],
+                "radiuses": [int(radius)]
+            })
     return rows
 
-
-def prepare_pred_fn_for_tree(model):
-    if hasattr(model, "predict_proba"):
-        def pred_fn(X):
-            p = model.predict_proba(X)
-            if p.ndim == 2:
-                probs = p[:, 1]
-            else:
-                probs = p
-            return (probs > 0.5).astype(int)
-    else:
-        def pred_fn(X):
-            p = model.predict(X)
-            p = np.array(p).reshape(-1)
-            if p.dtype.kind == 'f':
-                return (p > 0.5).astype(int)
-            else:
-                return p.astype(int)
-    return pred_fn
-
-
-def prepare_pred_fn_for_mlp(torch_model):
-    def pred_fn(X):
-        t = torch.tensor(X, dtype=torch.float32)
-        with torch.no_grad():
-            logits = torch_model(t).squeeze(-1)
-            probs = torch.sigmoid(logits).cpu().numpy().reshape(-1)
-            return (probs > 0.5).astype(int)
-    return pred_fn
-
+def aggregate_atom_per_molecule(per_atom_rows):
+    agg = {}
+    for row in per_atom_rows:
+        ID = row["ID"]
+        if ID not in agg:
+            agg[ID] = []
+        agg[ID].append(row["atom_importance"])
+    return agg
 
 def run(dataset, model_name, split):
-    PROJECT_ROOT = os.environ.get("PHARM_PROJECT_ROOT")
-    if PROJECT_ROOT is None:
+    ROOT = os.environ.get("PHARM_PROJECT_ROOT")
+    if ROOT is None:
         raise EnvironmentError("Please set the PHARM_PROJECT_ROOT environment variable!")
 
-    labels_path = os.path.join(PROJECT_ROOT, "data", dataset, f"{dataset}_labels.parquet")
-    logging.info("Loading labels")
-    df_labels = pd.read_parquet(labels_path)
-    allowed_ids = set(df_labels["ID"].tolist())
-
-    files = sorted(glob.glob(os.path.join(PROJECT_ROOT, "data", dataset, "processed", "final_dataset_part_*.parquet")))
-    if len(files) == 0:
-        raise FileNotFoundError("No data files found")
-
-    df = pd.concat([pd.read_parquet(p) for p in files], ignore_index=True)
-    df = df[df["ID"].isin(allowed_ids)].reset_index(drop=True)
-    if df.shape[0] == 0:
-        raise ValueError("No records left after filtering")
-
+    df = pd.read_parquet(f"{ROOT}/data/{dataset}/{dataset}_split.parquet")
     smiles = df["smiles"].tolist()
-    X, bit_info_list = compute_fps(smiles)
+    ids = df["ID"].tolist()
 
-    checkpoint_dir = os.path.join(PROJECT_ROOT, "results", "checkpoints", dataset)
+    X, bit_infos = compute_fps(smiles)
 
-    if model_name.lower() == "rf":
-        logging.info("Loading RF model")
-        model = load_rf(os.path.join(checkpoint_dir, f"best_model_rf_{split}.joblib"))
-        pred_fn = prepare_pred_fn_for_tree(model)
-        expl_vals = shap_tree_values(model, X)
-
-    elif model_name.lower() == "xgb":
-        logging.info("Loading XGB model")
-        model = load_xgb(os.path.join(checkpoint_dir, f"best_model_xgb_{split}.joblib"))
-        pred_fn = prepare_pred_fn_for_tree(model)
-        expl_vals = shap_tree_values(model, X)
-
-    elif model_name.lower() == "mlp":
-        logging.info("Loading MLP model")
-        torch_model = load_mlp(os.path.join(checkpoint_dir, f"best_model_mlp_{split}.pth"), X.shape[1])
-        pred_fn = prepare_pred_fn_for_mlp(torch_model)
-        expl_vals = shap_deep_values(torch_model, X)
-
-    elif model_name.lower() == "mlp_vg":
-        logging.info("Loading MLP_VG model")
-        torch_model = load_mlp(os.path.join(checkpoint_dir, f"best_model_mlp_{split}.pth"), X.shape[1])
-        pred_fn = prepare_pred_fn_for_mlp(torch_model)
-        expl_vals = vanilla_gradients(torch_model, X)
-
+    ckpt = f"{ROOT}/results/checkpoints/{dataset}"
+    if model_name == "rf":
+        model = load_rf(f"{ckpt}/best_model_rf_{split}.joblib")
+        expl = shap_tree_values(model, X)
+    elif model_name == "xgb":
+        model = load_xgb(f"{ckpt}/best_model_xgb_{split}.joblib")
+        expl = shap_tree_values(model, X)
+    elif model_name == "mlp":
+        model = load_mlp(f"{ckpt}/best_model_mlp_{split}.pth", X.shape[1])
+        expl = shap_deep_values(model, X)
+    elif model_name == "mlp_vg":
+        model = load_mlp(f"{ckpt}/best_model_mlp_{split}.pth", X.shape[1])
+        expl = vanilla_gradients(model, X)
     else:
         raise ValueError("Unknown model")
 
-    preds = pred_fn(X)
-    if expl_vals is None:
-        expl_vals = np.zeros_like(X, dtype=float)
-    if expl_vals.ndim == 3 and expl_vals.shape[0] == X.shape[0]:
-        expl_vals = expl_vals.reshape(X.shape)
-
-    masked_X = X.copy().astype(float)
-    top_k = 5
-    for i in range(X.shape[0]):
-        vec = expl_vals[i]
-        if np.isnan(vec).all():
-            continue
-        idxs = np.argsort(-np.abs(vec))[:top_k]
-        for idx in idxs:
-            masked_X[i, idx] = 1 - masked_X[i, idx]
-
-    preds_mask = pred_fn(masked_X)
-    acc = accuracy_score(preds, preds)
-    masked_acc = accuracy_score(preds, preds_mask)
-    fidelity = acc - masked_acc
-
-    atom_rows = []
-    for i in range(X.shape[0]):
-        rows = aggregate_atom_from_bitinfo(bit_info_list[i], expl_vals[i])
+    per_atom_rows = []
+    for i in range(len(X)):
+        rows = aggregate_atom_per_atom(bit_infos[i], expl[i])
         for r in rows:
-            r["ID"] = df.iloc[i]["ID"]
-            atom_rows.append(r)
+            r["ID"] = ids[i]
+            per_atom_rows.append(r)
 
-    atom_df = pd.DataFrame(atom_rows)[["ID", "atom_index", "shap_values", "radiuses"]] if atom_rows else pd.DataFrame(columns=["ID", "atom_index", "shap_values", "radiuses"])
-
-    out_dir = os.path.join(PROJECT_ROOT, "results", "shap", dataset)
+    df_per_atom = pd.DataFrame(per_atom_rows)
+    out_dir = f"{ROOT}/results/shap/{dataset}"
     os.makedirs(out_dir, exist_ok=True)
+    atom_path = f"{out_dir}/{model_name}_{split}_per_atom.parquet"
+    df_per_atom.to_parquet(atom_path, index=False)
+    logging.info(f"Saved per-atom file: {atom_path}")
 
-    pd.DataFrame({
-        "fidelity": [float(fidelity)],
-        "accuracy": [float(acc)],
-        "masked_accuracy": [float(masked_acc)]
-    }).to_csv(os.path.join(out_dir, f"{model_name}_{split}_fidelity.csv"), index=False)
+    agg_dict = aggregate_atom_per_molecule(per_atom_rows)
+    df_agg = pd.DataFrame([
+        {"ID": ID, "atom_importances": vals} for ID, vals in agg_dict.items()
+    ])
+    agg_path = f"{out_dir}/{model_name}_{split}_aggregate.parquet"
+    df_agg.to_parquet(agg_path, index=False)
+    logging.info(f"Saved aggregate file: {agg_path}")
 
-    atom_df.to_parquet(os.path.join(out_dir, f"{model_name}_{split}_per_atom.parquet"), index=False)
-
-    logging.info(f"Fidelity: {fidelity:.6f}")
-    logging.info("Results saved")
-
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", type=str, default="k3")
-    parser.add_argument("--model", type=str, default="rf")
-    parser.add_argument("--split", type=str, default="easy")
-    args = parser.parse_args()
-    run(args.dataset, args.model, args.split)
-
+    print("\n=== FIRST 5 ROWS PER ATOM ===")
+    print(df_per_atom.head())
+    print("\n=== FIRST 5 ROWS AGGREGATE ===")
+    print(df_agg.head())
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dataset", default="k3")
+    parser.add_argument("--model", default="rf")
+    parser.add_argument("--split", default="split_close_set")
+    args = parser.parse_args()
+
+    run(args.dataset, args.model, args.split)
