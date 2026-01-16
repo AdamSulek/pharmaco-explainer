@@ -12,11 +12,6 @@ from rdkit.Chem import AllChem
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-
-# =========================
-#        MODELS
-# =========================
-
 class MLP(nn.Module):
     def __init__(self, in_features=2048, hidden_dim=128, num_hidden_layers=2, dropout_rate=0.2):
         super().__init__()
@@ -60,10 +55,6 @@ def load_mlp(path, fp_dim):
     return model
 
 
-# =========================
-#      FINGERPRINTS
-# =========================
-
 def compute_fps(smiles_list, fp_size=2048, radius=2):
     X = np.zeros((len(smiles_list), fp_size), dtype=np.int8)
     bit_info_list = []
@@ -88,34 +79,21 @@ def compute_fps(smiles_list, fp_size=2048, radius=2):
     return X, bit_info_list
 
 
-# =========================
-#    EXPLAINABILITY
-# =========================
-
-def shap_tree_values(model, X, batch_size=5000):
+def shap_tree_values(model, X):
     import shap
-
-    logging.info("Starting SHAP TreeExplainer...")
+    logging.info("Starting SHAP TreeExplainer (Full Matrix)...")
+    
     explainer = shap.TreeExplainer(model)
+    vals = explainer.shap_values(X)
 
-    all_vals = []
+    if isinstance(vals, list):
+        vals = vals[1] if len(vals) == 2 else vals
 
-    for start in range(0, len(X), batch_size):
-        end = start + batch_size
-        logging.info(f"Tree SHAP batch {start}:{end}")
-        vals = explainer.shap_values(X[start:end])
-
-        if isinstance(vals, list):
-            vals = vals[1] if len(vals) == 2 else vals
-
-        all_vals.append(np.asarray(vals, dtype=np.float32))
-
-    return np.vstack(all_vals)
+    return np.asarray(vals, dtype=np.float32)
 
 
 def shap_deep_values(model, X):
     import shap
-
     logging.info("Starting SHAP DeepExplainer...")
     bg_n = min(200, max(1, len(X) // 10))
     bg = torch.tensor(X[:bg_n], dtype=torch.float32)
@@ -149,79 +127,63 @@ def vanilla_gradients(model, X):
     return grads
 
 
-# =========================
-#   PER-ATOM AGGREGATION
-# =========================
-
 def aggregate_atom_per_atom(bit_info, importance_vec):
     rows = []
-
+    vec = np.asarray(importance_vec).flatten()
+    
     for bit, atom_list in bit_info.items():
-        val = float(importance_vec[bit]) if bit < len(importance_vec) else 0.0
-
+        bit_idx = int(bit)
+        val = float(vec[bit_idx]) if bit_idx < len(vec) else 0.0
+        
         for atom_idx, radius in atom_list:
             rows.append({
                 "atom_index": int(atom_idx),
                 "atom_importance": [val],
                 "radiuses": [int(radius)],
             })
-
     return rows
 
 
-def aggregate_atom_per_molecule(per_atom_rows, aggregate="mean"):
-    """
-    aggregate: mean | max | sum
-    """
-    if aggregate not in {"mean", "max", "sum"}:
-        raise ValueError("aggregate must be one of: mean, max, sum")
-
+def aggregate_atom_per_molecule(per_atom_rows, smiles_dict, aggregate="mean"):
     mol_dict = {}
-
     for row in per_atom_rows:
         ID = row["ID"]
         atom_idx = int(row["atom_index"])
         val = float(row["atom_importance"][0])
-
         mol_dict.setdefault(ID, {}).setdefault(atom_idx, []).append(val)
 
     out = {}
-
     for ID, atom_map in mol_dict.items():
+        smi = smiles_dict[ID]
+        mol = Chem.MolFromSmiles(smi)
+        num_atoms = mol.GetNumAtoms() if mol else 0
+        
         atom_importances = []
-
-        for atom_idx in sorted(atom_map.keys()):
-            vals = atom_map[atom_idx]
-
-            if aggregate == "mean":
-                agg_val = float(np.mean(vals))
-            elif aggregate == "max":
-                agg_val = float(np.max(vals))
+        for i in range(num_atoms):
+            if i in atom_map:
+                vals = atom_map[i]
+                if aggregate == "mean":
+                    agg_val = float(np.mean(vals))
+                elif aggregate == "max":
+                    agg_val = float(np.max(vals))
+                else:
+                    agg_val = float(np.sum(vals))
             else:
-                agg_val = float(np.sum(vals))
-
+                agg_val = 0.0
             atom_importances.append(agg_val)
 
         out[ID] = atom_importances
-
     return out
-
-
-# =========================
-#           RUN
-# =========================
 
 def run(dataset, model_name, split, aggregate):
     ROOT = os.environ.get("PHARM_PROJECT_ROOT")
     if ROOT is None:
         raise EnvironmentError("Set PHARM_PROJECT_ROOT")
 
-    # --- labels ---
     labels_path = os.path.join(ROOT, "data", dataset, f"{dataset}_labels.parquet")
     df_labels = pd.read_parquet(labels_path)
     allowed_ids = set(df_labels["ID"])
 
-    # --- split ---
     split_path = os.path.join(ROOT, "data", dataset, f"{dataset}_split.parquet")
     df = pd.read_parquet(split_path)
     df = df[df["ID"].isin(allowed_ids)].reset_index(drop=True)
@@ -233,29 +195,26 @@ def run(dataset, model_name, split, aggregate):
 
     ckpt_dir = os.path.join(ROOT, "results", "checkpoints", dataset)
 
-    # --- model ---
     if model_name == "rf":
         model = load_rf(os.path.join(ckpt_dir, f"best_model_rf_{split}.joblib"))
         expl_vals = shap_tree_values(model, X)
-
     elif model_name == "xgb":
         model = load_xgb(os.path.join(ckpt_dir, f"best_model_xgb_{split}.joblib"))
         expl_vals = shap_tree_values(model, X)
-
     elif model_name == "mlp":
         model = load_mlp(os.path.join(ckpt_dir, f"best_model_mlp_{split}.pth"), X.shape[1])
         expl_vals = shap_deep_values(model, X)
-
     elif model_name == "mlp_vg":
         model = load_mlp(os.path.join(ckpt_dir, f"best_model_mlp_{split}.pth"), X.shape[1])
         expl_vals = vanilla_gradients(model, X)
-
     else:
         raise ValueError("Unknown model")
 
-    # --- per atom ---
-    per_atom_rows = []
+    if expl_vals.ndim == 1:
+        logging.info(f"Reshaping expl_vals from {expl_vals.shape} to (1, -1)")
+        expl_vals = expl_vals.reshape(1, -1)
 
+    per_atom_rows = []
     for i in range(len(X)):
         rows = aggregate_atom_per_atom(bit_infos[i], expl_vals[i])
         for r in rows:
@@ -271,8 +230,8 @@ def run(dataset, model_name, split, aggregate):
         index=False,
     )
 
-    # --- aggregate ---
-    agg_dict = aggregate_atom_per_molecule(per_atom_rows, aggregate)
+    smiles_dict = dict(zip(ids, smiles))
+    agg_dict = aggregate_atom_per_molecule(per_atom_rows, smiles_dict, aggregate)
 
     df_agg = pd.DataFrame(
         [{"ID": ID, "atom_importances": vals} for ID, vals in agg_dict.items()]
@@ -283,26 +242,15 @@ def run(dataset, model_name, split, aggregate):
         index=False,
     )
 
-    logging.info("DONE")
+    logging.info(f"DONE. Processed {len(df_agg)} molecules without batching.")
 
-
-# =========================
-#           MAIN
-# =========================
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-
     parser.add_argument("--dataset", type=str, default="k3")
     parser.add_argument("--model", type=str, default="rf")
     parser.add_argument("--split", type=str, default="split_close_set")
-    parser.add_argument(
-        "--aggregate",
-        type=str,
-        default="max",
-        choices=["mean", "max", "sum"],
-    )
+    parser.add_argument("--aggregate", type=str, default="max", choices=["mean", "max", "sum"])
 
     args = parser.parse_args()
-
     run(args.dataset, args.model, args.split, args.aggregate)

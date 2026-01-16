@@ -16,7 +16,7 @@ def get_project_root():
         )
     return root
 
-def to_bitvect(fp, n_bits=1024):
+def to_bitvect(fp, n_bits=2048):
     if isinstance(fp, ExplicitBitVect):
         return fp
     if isinstance(fp, (bytes, bytearray)):

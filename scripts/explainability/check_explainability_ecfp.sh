@@ -36,19 +36,19 @@ MODEL_UPPER=$(echo "${MODEL}" | tr '[:lower:]' '[:upper:]')
 
 case "$MODEL_UPPER" in
     RF)
-        python ${PHARM_PROJECT_ROOT}/src/explainability/check_explainability_ecfp2.py \
+        python ${PHARM_PROJECT_ROOT}/src/explainability/check_explainability_ecfp.py \
             --model rf --dataset "$K_PAR" --split "$INPUT" --aggregate "$AGGREGATE"
         ;;
     XGB)
-        python ${PHARM_PROJECT_ROOT}/src/explainability/check_explainability_ecfp2.py \
+        python ${PHARM_PROJECT_ROOT}/src/explainability/check_explainability_ecfp.py \
             --model xgb --dataset "$K_PAR" --split "$INPUT" --aggregate "$AGGREGATE"
         ;;
     MLP)
-        python ${PHARM_PROJECT_ROOT}/src/explainability/check_explainability_ecfp2.py \
+        python ${PHARM_PROJECT_ROOT}/src/explainability/check_explainability_ecfp.py \
             --model mlp --dataset "$K_PAR" --split "$INPUT" --aggregate "$AGGREGATE"
         ;;
     MLP_VG)
-        python ${PHARM_PROJECT_ROOT}/src/explainability/check_explainability_ecfp2.py \
+        python ${PHARM_PROJECT_ROOT}/src/explainability/check_explainability_ecfp.py \
             --model mlp_vg --dataset "$K_PAR" --split "$INPUT" --aggregate "$AGGREGATE"
         ;;
     *)
