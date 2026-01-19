@@ -133,8 +133,7 @@ def aggregate_atom_per_atom(bit_info, importance_vec):
     
     for bit, atom_list in bit_info.items():
         bit_idx = int(bit)
-        val = float(vec[bit_idx]) if bit_idx < len(vec) else 0.0
-        
+        val = float(vec[bit_idx])
         for atom_idx, radius in atom_list:
             rows.append({
                 "atom_index": int(atom_idx),
